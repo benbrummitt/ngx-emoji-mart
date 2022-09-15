@@ -6,8 +6,9 @@ import {
   EventEmitter,
   Input,
   OnChanges,
-  Output,
+  Output
 } from '@angular/core';
+
 
 @Component({
   selector: 'emoji-preview',
@@ -45,7 +46,7 @@ import {
       </div>
     </div>
 
-    <div class="emoji-mart-preview" [hidden]="emoji">
+    <div class="emoji-mart-preview" *ngIf="!emoji">
       <div class="emoji-mart-preview-emoji">
         <ngx-emoji
           *ngIf="idleEmoji && idleEmoji.length"
@@ -64,11 +65,8 @@ import {
       </div>
 
       <div class="emoji-mart-preview-skins">
-        <emoji-skins
-          [skin]="emojiSkin"
-          (changeSkin)="skinChange.emit($event)"
-          [i18n]="i18n"
-        ></emoji-skins>
+        <emoji-skins [skin]="emojiSkin" (changeSkin)="skinChange.emit($event)" [i18n]="i18n">
+        </emoji-skins>
       </div>
     </div>
   `,
@@ -87,7 +85,7 @@ export class PreviewComponent implements OnChanges {
   @Input() emojiSheetSize?: Emoji['sheetSize'];
   @Input() emojiBackgroundImageFn?: Emoji['backgroundImageFn'];
   @Input() emojiImageUrlFn?: Emoji['imageUrlFn'];
-  @Output() skinChange = new EventEmitter<Emoji['skin']>();
+  @Output() skinChange = new EventEmitter<number>();
   emojiData: Partial<EmojiData> = {};
   listedEmoticons?: string[];
 

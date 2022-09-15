@@ -1,4 +1,4 @@
-import * as emojiDataRaw from 'emoji-datasource/emoji.json';
+import emojiDataRaw from 'emoji-datasource/emoji.json';
 import fs from 'fs';
 import path from 'path';
 import inflection from 'inflection';
@@ -8,8 +8,8 @@ import { EmojiData } from './emoji';
 
 const emojiLib = require('emojilib');
 // cast types to emojiData
-// @ts-expect-error
-const emojiData: EmojiData[] = emojiDataRaw.default;
+// @ts-ignore
+const emojiData: EmojiData[] = emojiDataRaw;
 const categories: any[] = [];
 const emojis: any[] = [];
 const skins: any[] = [];
@@ -27,11 +27,6 @@ const catPairs = [
   ['Flags', 'flags']
 ];
 const sets = ['apple', 'google', 'twitter', 'facebook'];
-
-const unifiedToNative = (unified: string) => {
-  const codePoints = unified.split('-').map(u => parseInt(`0x${u}`, 16));
-  return String.fromCodePoint(...codePoints);
-}
 
 catPairs.forEach((category, i) => {
   const [name, id] = category;
@@ -94,12 +89,11 @@ emojiData.forEach((datum: any) => {
   datum.text = datum.text || '';
   delete datum.texts;
 
-  const keywords = emojiLib[unifiedToNative(datum.unified)];
-  if (keywords) {
-    datum.keywords = keywords;
+  if (emojiLib.lib[datum.short_name]) {
+    datum.keywords = emojiLib.lib[datum.short_name].keywords;
   }
 
-  if (datum.category === 'Component') {
+  if (datum.category === 'Skin Tones') {
     skins.push(datum);
   } else {
     categoryIndex = categoriesIndex[category];
@@ -153,7 +147,6 @@ emojiData.forEach((datum: any) => {
   delete datum.softbank;
   delete datum.google;
   delete datum.image;
-  delete datum.subcategory;
   // delete datum.short_name;
   delete datum.non_qualified;
   delete datum.category;

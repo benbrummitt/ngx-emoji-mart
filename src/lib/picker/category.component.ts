@@ -24,7 +24,7 @@ import { EmojiFrequentlyService } from './emoji-frequently.service';
       #container
       class="emoji-mart-category"
       [attr.aria-label]="i18n.categories[id]"
-      [class.emoji-mart-no-results]="noEmojiToDisplay"
+      [class.emoji-mart-no-results]="emojis && !emojis.length"
       [ngStyle]="containerStyles"
     >
       <div class="emoji-mart-category-label" [ngStyle]="labelStyles" [attr.data-name]="name">
@@ -59,11 +59,11 @@ import { EmojiFrequentlyService } from './emoji-frequently.service';
         </div>
       </div>
 
-      <div *ngIf="noEmojiToDisplay">
+      <div *ngIf="emojis && !emojis.length">
         <div>
           <ngx-emoji
             [emoji]="notFoundEmoji"
-            [size]="38"
+            size="38"
             [skin]="emojiSkin"
             [isNative]="emojiIsNative"
             [set]="emojiSet"
@@ -82,8 +82,9 @@ import { EmojiFrequentlyService } from './emoji-frequently.service';
     </section>
 
     <ng-template #normalRenderTemplate>
+      <div *ngIf="emojis">
         <ngx-emoji
-          *ngFor="let emoji of emojisToDisplay; trackBy: trackById"
+          *ngFor="let emoji of emojis; trackBy: trackById"
           [emoji]="emoji"
           [size]="emojiSize"
           [skin]="emojiSkin"
@@ -100,13 +101,14 @@ import { EmojiFrequentlyService } from './emoji-frequently.service';
           (emojiLeave)="emojiLeave.emit($event)"
           (emojiClick)="emojiClick.emit($event)"
         ></ngx-emoji>
+      </div>
     </ng-template>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
   preserveWhitespaces: false,
 })
 export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
-  @Input() emojis: any[] | null = null
+  @Input() emojis?: any[] | null;
   @Input() hasStickyPosition = true;
   @Input() name = '';
   @Input() perLine = 9;
@@ -135,7 +137,6 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
   @ViewChild('container', { static: true }) container!: ElementRef;
   @ViewChild('label', { static: true }) label!: ElementRef;
   containerStyles: any = {};
-  emojisToDisplay: any[]  = []
   private filteredEmojisSubject = new Subject<any[] | null | undefined>();
   filteredEmojis$: Observable<any[] | null | undefined> = this.filteredEmojisSubject.asObservable();
   labelStyles: any = {};
@@ -153,10 +154,9 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
   ) {}
 
   ngOnInit() {
-    this.updateRecentEmojis();
-    this.emojisToDisplay = this.filterEmojis();
+    this.emojis = this.getEmojis();
 
-    if (this.noEmojiToDisplay) {
+    if (!this.emojis) {
       this.containerStyles = { display: 'none' };
     }
 
@@ -168,20 +168,21 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes.emojis?.currentValue?.length !== changes.emojis?.previousValue?.length) {
-      this.emojisToDisplay = this.filterEmojis();
       this.ngAfterViewInit();
     }
   }
 
   ngAfterViewInit() {
-    if (!this.virtualize) {
+    if (!this.virtualize || !this.emojis?.length) {
       return;
     }
+
+    this.emojis = this.filterEmojis();
 
     const { width } = this.container.nativeElement.getBoundingClientRect();
 
     const perRow = Math.floor(width / (this.emojiSize + 12));
-    this.rows = Math.ceil(this.emojisToDisplay.length / perRow);
+    this.rows = Math.ceil(this.emojis.length / perRow);
 
     this.containerStyles = {
       ...this.containerStyles,
@@ -191,11 +192,6 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
     this.ref?.detectChanges();
 
     this.handleScroll(this.container.nativeElement.parentNode.parentNode.scrollTop);
-  }
-
-
-  get noEmojiToDisplay():boolean{
-    return this.emojisToDisplay.length === 0;
   }
 
   memoizeSize() {
@@ -212,7 +208,6 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
       this.maxMargin = height - labelHeight;
     }
   }
-
   handleScroll(scrollTop: number): boolean {
     let margin = scrollTop - this.top;
     margin = margin < this.minMargin ? this.minMargin : margin;
@@ -223,7 +218,7 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
       const parentHeight = this.container.nativeElement.parentNode.parentNode.clientHeight;
 
       if (parentHeight + (parentHeight + this.virtualizeOffset) >= top && -height - (parentHeight + this.virtualizeOffset) <= top) {
-        this.filteredEmojisSubject.next(this.emojisToDisplay);
+        this.filteredEmojisSubject.next(this.emojis);
       } else {
         this.filteredEmojisSubject.next([]);
       }
@@ -243,38 +238,42 @@ export class CategoryComponent implements OnChanges, OnInit, AfterViewInit {
     return true;
   }
 
-  updateRecentEmojis() {
-    if (this.name !== 'Recent') {
-      return;
+  getEmojis() {
+    if (this.name === 'Recent') {
+      let frequentlyUsed =
+        this.recent || this.frequently.get(this.perLine, this.totalFrequentLines);
+      if (!frequentlyUsed || !frequentlyUsed.length) {
+        frequentlyUsed = this.frequently.get(this.perLine, this.totalFrequentLines);
+      }
+      if (frequentlyUsed.length) {
+        this.emojis = frequentlyUsed
+          .map(id => {
+            const emoji = this.custom.filter((e: any) => e.id === id)[0];
+            if (emoji) {
+              return emoji;
+            }
+
+            return id;
+          })
+          .filter(id => !!this.emojiService.getData(id));
+      }
+
+      if ((!this.emojis || this.emojis.length === 0) && frequentlyUsed.length > 0) {
+        return null;
+      }
     }
 
-    let frequentlyUsed =
-      this.recent || this.frequently.get(this.perLine, this.totalFrequentLines);
-    if (!frequentlyUsed || !frequentlyUsed.length) {
-      frequentlyUsed = this.frequently.get(this.perLine, this.totalFrequentLines);
+    if (this.emojis) {
+      this.emojis = this.emojis.slice(0);
     }
-    if (!frequentlyUsed.length) {
-      return
-    }
-    this.emojis = frequentlyUsed
-      .map(id => {
-        const emoji = this.custom.filter((e: any) => e.id === id)[0];
-        if (emoji) {
-          return emoji;
-        }
 
-        return id;
-      })
-      .filter(id => !!this.emojiService.getData(id));
-
+    return this.emojis;
   }
-
   updateDisplay(display: 'none' | 'block') {
     this.containerStyles.display = display;
-    this.updateRecentEmojis();
+    this.getEmojis();
     this.ref.detectChanges();
   }
-
   trackById(index: number, item: any) {
     return item;
   }
